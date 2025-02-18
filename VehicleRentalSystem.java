@@ -31,10 +31,10 @@ public class VehicleRentalSystem {
                     listAvailableVehicles();
                     break;
                 case "2":
-                    rentVehicle();
+                    rentVehicle(scanner);
                     break;
                 case "3":
-                    returnVehicle();
+                    returnVehicle(scanner);
                     break;
                 case "4":
                     System.out.print("Enter the pin code: ");
@@ -50,6 +50,7 @@ public class VehicleRentalSystem {
                     break;
                 case "0":
                     System.out.println("Goodbye! See you next time.");
+                    scanner.close();
                     return;
                 default:
                     System.out.println("Invalid option. Please select a valid number.");
@@ -118,54 +119,53 @@ public class VehicleRentalSystem {
         }
     }
 
-    public static void rentVehicle() {
-        try (Scanner scanner = new Scanner(System.in)) {
-            List<String> vehicles = readFile(VEHICLES_FILE);
-            List<String> rentedCars = readFile(RENTED_FILE);
-
-            String registrationNumber;
-            while (true) {
-                System.out.print("Enter the registration number of the vehicle: ");
-                registrationNumber = scanner.nextLine().trim().toUpperCase();
-                boolean exists = false;
-                for (String vehicle : vehicles) {
-                    if (vehicle.startsWith(registrationNumber)) {
-                        exists = true;
-                        break;
-                    }
-                }
-                if (exists) {
-                    if (rentedCars.contains(registrationNumber)) {
-                        System.out.println("Sorry, this vehicle is already rented.");
-                    } else {
-                        break;
-                    }
+    public static void rentVehicle(Scanner scanner) {
+        List<String> vehicles = readFile(VEHICLES_FILE);
+        List<String> rentedCars = readFile(RENTED_FILE);
+    
+        String finalRegistrationNumber = null;
+    
+        while (true) {
+            System.out.print("Enter the registration number of the vehicle: ");
+            String tempRegistrationNumber = scanner.nextLine().trim().toUpperCase(); 
+    
+            boolean exists = vehicles.stream().anyMatch(vehicle -> vehicle.startsWith(tempRegistrationNumber));
+    
+            if (exists) {
+                if (rentedCars.contains(tempRegistrationNumber)) {
+                    System.out.println("Sorry, this vehicle is already rented.");
                 } else {
-                    System.out.println("Vehicle not found. Please enter a valid registration number.");
+                    finalRegistrationNumber = tempRegistrationNumber;
+                    break;
                 }
+            } else {
+                System.out.println("Vehicle not found. Please enter a valid registration number.");
             }
-
-            String birthDate = getValidDateInput("Please enter your birth date (DD/MM/YYYY): ");
-            int age = calculateAge(birthDate);
-            if (age < 18) {
-                System.out.println("Sorry, you must be at least 18 years old to rent a vehicle.");
-                return;
-            }
-
-            String firstName = getValidNameInput("Please enter your first name: ");
-            String lastName = getValidNameInput("Please enter your last name: ");
-            String email = getValidEmailInput("Please enter your email: ");
-
-            appendToFile(CUSTOMERS_FILE, birthDate + "," + firstName + "," + lastName + "," + email);
-            String rentStart = new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date());
-            appendToFile(RENTED_FILE, registrationNumber + "," + birthDate + "," + rentStart);
-            double rentalCost = 1000; 
-            String transaction = registrationNumber + "," + rentStart + "," + rentalCost;
-            appendToFile(TRANSACTIONS_FILE, transaction);
-
-            System.out.println("Congratulations, " + firstName + " " + lastName + "! You've successfully rented the vehicle (Registration: " + registrationNumber + ") on " + rentStart + ".");
         }
+        if (finalRegistrationNumber == null) return; 
+    
+        String birthDate = getValidDateInput(scanner, "Please enter your birth date (DD/MM/YYYY): ");
+        int age = calculateAge(birthDate);
+        if (age < 18) {
+            System.out.println("Sorry, you must be at least 18 years old to rent a vehicle.");
+            return;
+        }
+    
+        String firstName = getValidNameInput(scanner, "Please enter your first name: ");
+        String lastName = getValidNameInput(scanner, "Please enter your last name: ");
+    
+        System.out.print("Please enter your email: ");
+        String email = scanner.nextLine().trim();
+    
+        appendToFile(CUSTOMERS_FILE, birthDate + "," + firstName + "," + lastName + "," + email);
+        String rentStart = new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date());
+        appendToFile(RENTED_FILE, finalRegistrationNumber + "," + birthDate + "," + rentStart);
+        appendToFile(TRANSACTIONS_FILE, finalRegistrationNumber + "," + rentStart + ",1000");
+    
+        System.out.println("Congratulations, " + firstName + " " + lastName + "! You've successfully rented the vehicle.");
     }
+    
+
     private static int calculateAge(String birthDate) {
         try {
             SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
@@ -175,8 +175,7 @@ public class VehicleRentalSystem {
 
             Calendar today = Calendar.getInstance();
             int age = today.get(Calendar.YEAR) - birthCalendar.get(Calendar.YEAR);
-            if (today.get(Calendar.MONTH) < birthCalendar.get(Calendar.MONTH) ||
-                    (today.get(Calendar.MONTH) == birthCalendar.get(Calendar.MONTH) && today.get(Calendar.DAY_OF_MONTH) < birthCalendar.get(Calendar.DAY_OF_MONTH))) {
+            if (today.get(Calendar.DAY_OF_YEAR) < birthCalendar.get(Calendar.DAY_OF_YEAR)) {
                 age--;
             }
             return age;
@@ -186,80 +185,55 @@ public class VehicleRentalSystem {
         }
     }
 
-    private static String getValidNameInput(String prompt) {
-        try (Scanner scanner = new Scanner(System.in)) {
-            String name;
-            while (true) {
-                System.out.print(prompt);
-                name = scanner.nextLine().trim();
-                if (name.matches("[a-zA-Z]+")) {
-                    break;
-                } else {
-                    System.out.println("Invalid name. Please enter a valid name.");
-                }
+    private static String getValidNameInput(Scanner scanner, String prompt) {
+        String name;
+        while (true) {
+            System.out.print(prompt);
+            name = scanner.nextLine().trim();
+            if (name.matches("[a-zA-Z]+")) {
+                break;
+            } else {
+                System.out.println("Invalid name. Please enter a valid name.");
             }
-            return name;
         }
+        return name;
     }
-    private static String getValidEmailInput(String prompt) {
-        try (Scanner scanner = new Scanner(System.in)) {
-            String email;
-            while (true) {
-                System.out.print(prompt);
-                email = scanner.nextLine().trim();
-                if (email.matches("^[\\w-\\.]+@([\\w-]+\\.)+[\\w-]{2,4}$")) {
-                    break;
-                } else {
-                    System.out.println("Invalid email. Please enter a valid email.");
-                }
+
+    private static String getValidDateInput(Scanner scanner, String prompt) {
+        String date;
+        while (true) {
+            System.out.print(prompt);
+            date = scanner.nextLine().trim();
+            if (date.matches("^\\d{2}/\\d{2}/\\d{4}$")) {
+                break;
+            } else {
+                System.out.println("Invalid date format. Please use DD/MM/YYYY.");
             }
-            return email;
         }
+        return date;
     }
-    private static String getValidDateInput(String prompt) {
-        try (Scanner scanner = new Scanner(System.in)) {
-            String date;
-            while (true) {
-                System.out.print(prompt);
-                date = scanner.nextLine().trim();
-                if (date.matches("^\\d{2}/\\d{2}/\\d{4}$")) {
-                    break;
-                } else {
-                    System.out.println("Invalid date. Please enter a valid date in DD/MM/YYYY format.");
-                }
-            }
-            return date;
-        }
-    }
-    public static void returnVehicle() {
-        try (Scanner scanner = new Scanner(System.in)) {
-            List<String> rented = readFile(RENTED_FILE);
 
-            System.out.print("Enter the registration number of the vehicle you're returning: ");
-            String registrationNumber = scanner.nextLine().trim().toUpperCase();
+    public static void returnVehicle(Scanner scanner) {
+        List<String> rented = readFile(RENTED_FILE);
 
-            Optional<String> rentedEntry = rented.stream().filter(line -> line.startsWith(registrationNumber)).findFirst();
-            if (!rentedEntry.isPresent()) {
-                System.out.println("This vehicle is not rented.");
-                return;
-            }
+        System.out.print("Enter the registration number of the vehicle you're returning: ");
+        String registrationNumber = scanner.nextLine().trim().toUpperCase();
 
-            rented.remove(rentedEntry.get());
+        if (!rented.removeIf(line -> line.startsWith(registrationNumber))) {
+            System.out.println("This vehicle is not rented.");
+        } else {
             writeFile(RENTED_FILE, rented);
+            System.out.println("Return Successful! Thank you!");
         }
-        System.out.println("Return Successful! Thank you for using our service!");
     }
-    public static void countEarnings() {
-        List<String> transactions = readFile(TRANSACTIONS_FILE);
-        double totalEarnings = transactions.stream()
-                .mapToDouble(line -> {
-                    String[] parts = line.split(",");
-                    return Double.parseDouble(parts[2]);
-                })
-                .sum();
 
+    public static void countEarnings() {
+        double totalEarnings = readFile(TRANSACTIONS_FILE).stream()
+                .mapToDouble(line -> Double.parseDouble(line.split(",")[2]))
+                .sum();
         System.out.println("Total Earnings: " + totalEarnings + " PKR");
     }
+
     public static void changePin(Scanner scanner) {
         System.out.print("Enter new pin code: ");
         pinCode = scanner.nextLine().trim();
